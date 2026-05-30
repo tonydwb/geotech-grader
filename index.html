@@ -546,7 +546,7 @@ function updateUsageDisplay() {
 function canUse() { return getUsage().count < DAILY_FREE_LIMIT; }
 
 // ============================================================
-// AI Grading (streaming via backend)
+// AI Grading (via backend /api/grade)
 // ============================================================
 async function startGrading() {
   const question = document.getElementById('questionInput').value.trim();
@@ -570,25 +570,14 @@ async function startGrading() {
       const ej = await resp.json().catch(() => ({}));
       throw new Error(ej.error || `批改失败 (${resp.status})`);
     }
+    const data = await resp.json();
+    const full = data.content || '未获取到回复';
+
     loading.classList.remove('show'); rs.classList.add('show');
-    const reader = resp.body.getReader(), decoder = new TextDecoder();
-    let full = '', buf = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n'); buf = lines.pop();
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t || t === 'data: [DONE]' || !t.startsWith('data: ')) continue;
-        try {
-          const d = JSON.parse(t.slice(6));
-          const delta = d.choices?.[0]?.delta?.content;
-          if (delta) { full += delta; renderContent(full); rs.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-        } catch(e) {}
-      }
-    }
-    updateResultHeader(full); incrementUsage();
+    updateResultHeader(full);
+    renderContent(full);
+    rs.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    incrementUsage();
   } catch (err) {
     loading.classList.remove('show');
     showToast(err.message || '批改失败，请稍后重试');
