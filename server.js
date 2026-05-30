@@ -91,7 +91,6 @@ app.post('/api/grade', async (req, res) => {
         ],
         temperature: 0.1,
         max_tokens: 2000,
-        stream: true
       })
     });
 
@@ -105,35 +104,9 @@ app.post('/api/grade', async (req, res) => {
       return res.status(500).json({ error: errMsg });
     }
 
-    // 流式转发
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed === 'data: [DONE]') continue;
-        if (trimmed.startsWith('data: ')) {
-          res.write(trimmed + '\n');
-          res.flush && res.flush();
-        }
-      }
-    }
-
-    res.write('data: [DONE]\n');
-    res.end();
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '未获取到回复';
+    return res.json({ content });
   } catch (err) {
     console.error('API 调用失败:', err.message);
     res.status(500).json({ error: 'AI 服务暂时不可用，请稍后重试' });
