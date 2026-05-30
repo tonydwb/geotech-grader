@@ -1,0 +1,13 @@
+{
+  "name": "geotech-grader",
+  "version": "1.0.0",
+  "description": "岩土案例题批改器 - AI 智能批改 + 公式计算器",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

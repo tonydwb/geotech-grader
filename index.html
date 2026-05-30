@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>岩土案例题批改器 - AI 智能批改</title>
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="window.__katexReady=true;"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --warning: #f59e0b;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --text-secondary: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1e40af, #3b82f6);
+      color: white;
+      padding: 20px 16px 12px;
+      text-align: center;
+      position: relative;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .header p { font-size: 13px; opacity: 0.85; }
+    .header .usage-info { margin-top: 6px; font-size: 12px; opacity: 0.7; }
+
+    /* Tab bar */
+    .tab-bar {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 12px 8px;
+      border: none;
+      background: none;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      font-weight: 600;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Settings */
+    .settings-btn {
+      position: absolute; top: 16px; right: 16px;
+      background: none; border: none; color: white;
+      font-size: 18px; cursor: pointer; opacity: 0.7;
+    }
+
+    .container { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+    /* Input sections */
+    .input-section {
+      background: var(--card); border-radius: var(--radius);
+      padding: 16px; margin-bottom: 12px; border: 1px solid var(--border);
+    }
+    .input-section label {
+      display: block; font-size: 14px; font-weight: 600;
+      margin-bottom: 8px; color: var(--text);
+    }
+    .input-section label .hint { font-weight: 400; font-size: 12px; color: var(--text-secondary); }
+    .input-section textarea, .input-section input[type="number"] {
+      width: 100%; border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; font-size: 14px; line-height: 1.6;
+      font-family: inherit; transition: border-color 0.2s;
+    }
+    .input-section textarea { resize: vertical; }
+    .input-section textarea:focus, .input-section input:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .question-input { min-height: 120px; }
+    .answer-input { min-height: 80px; }
+
+    /* Submit */
+    .submit-btn {
+      width: 100%; padding: 14px; background: var(--primary); color: white;
+      border: none; border-radius: var(--radius); font-size: 16px;
+      font-weight: 600; cursor: pointer; transition: background 0.2s; margin-bottom: 16px;
+    }
+    .submit-btn:hover { background: var(--primary-dark); }
+    .submit-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    /* Result */
+    .result-section {
+      background: var(--card); border-radius: var(--radius);
+      padding: 16px; border: 1px solid var(--border);
+      margin-bottom: 16px; display: none;
+    }
+    .result-section.show { display: block; }
+    .result-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    }
+    .result-icon {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; color: white; flex-shrink: 0;
+    }
+    .result-icon.correct { background: var(--success); }
+    .result-icon.partial { background: var(--warning); }
+    .result-icon.wrong { background: var(--danger); }
+    .result-title { font-size: 16px; font-weight: 600; }
+    .result-subtitle { font-size: 12px; color: var(--text-secondary); }
+    .result-content {
+      font-size: 15px; line-height: 1.9;
+      word-wrap: break-word; overflow-x: auto;
+    }
+    .result-content h3 {
+      color: var(--primary); font-size: 15px;
+      margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    }
+    .result-content h3:first-child { margin-top: 0; }
+    .result-content .katex-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; }
+    .result-content .katex { font-size: 1.05em; }
+
+    /* Loading */
+    .loading { display: none; text-align: center; padding: 24px; }
+    .loading.show { display: block; }
+    .loading .dots span {
+      display: inline-block; width: 8px; height: 8px; margin: 0 2px;
+      background: var(--primary); border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out both;
+    }
+    .loading .dots span:nth-child(1) { animation-delay: -0.32s; }
+    .loading .dots span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); }
+    }
+    .loading p { font-size: 13px; color: var(--text-secondary); margin-top: 8px; }
+
+    /* Examples */
+    .examples-section {
+      background: var(--card); border-radius: var(--radius);
+      padding: 16px; border: 1px solid var(--border); margin-bottom: 16px;
+    }
+    .examples-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-secondary); }
+    .example-card {
+      padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+    }
+    .example-card:hover { border-color: var(--primary); background: #eff6ff; }
+    .example-card .tag {
+      display: inline-block; font-size: 11px; padding: 2px 8px;
+      background: #dbeafe; color: var(--primary); border-radius: 4px; margin-bottom: 6px;
+    }
+    .example-card .preview {
+      font-size: 13px; color: var(--text-secondary);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+
+    /* Footer */
+    .footer { text-align: center; padding: 16px; font-size: 12px; color: var(--text-secondary); }
+    .footer a { color: var(--primary); text-decoration: none; }
+
+    /* Toast */
+    .toast {
+      position: fixed; top: 20px; left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      background: #1e293b; color: white; padding: 12px 24px;
+      border-radius: 8px; font-size: 14px; z-index: 1000;
+      transition: transform 0.3s ease; white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 999; align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: white; border-radius: var(--radius);
+      padding: 20px; width: 90%; max-width: 400px;
+    }
+    .modal h3 { font-size: 16px; margin-bottom: 12px; }
+    .modal input {
+      width: 100%; padding: 10px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 14px; margin-bottom: 12px;
+    }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-actions button {
+      padding: 8px 16px; border-radius: 8px;
+      border: 1px solid var(--border); font-size: 14px; cursor: pointer;
+    }
+    .modal-actions .primary-btn { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* ========== Calculator Styles ========== */
+    .calc-category {
+      display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .calc-cat-btn {
+      padding: 8px 14px; border-radius: 20px; border: 1px solid var(--border);
+      background: white; font-size: 13px; cursor: pointer; transition: all 0.2s;
+      color: var(--text-secondary);
+    }
+    .calc-cat-btn.active {
+      background: var(--primary); color: white; border-color: var(--primary);
+    }
+
+    .calc-formula-list {
+      background: var(--card); border-radius: var(--radius);
+      padding: 16px; border: 1px solid var(--border); margin-bottom: 12px;
+    }
+    .calc-formula-list h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--text-secondary); }
+    .calc-formula-item {
+      padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 6px; cursor: pointer; transition: all 0.2s;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .calc-formula-item:hover { border-color: var(--primary); background: #eff6ff; }
+    .calc-formula-item.active { border-color: var(--primary); background: #dbeafe; }
+    .calc-formula-item .fname { font-size: 14px; font-weight: 500; }
+    .calc-formula-item .fexpr { font-size: 12px; color: var(--text-secondary); }
+
+    .calc-params {
+      background: var(--card); border-radius: var(--radius);
+      padding: 16px; border: 1px solid var(--border); margin-bottom: 12px;
+    }
+    .calc-params h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .param-row {
+      display: flex; align-items: center; margin-bottom: 10px; gap: 8px;
+    }
+    .param-row label {
+      width: 100px; font-size: 13px; text-align: right; flex-shrink: 0;
+      color: var(--text-secondary);
+    }
+    .param-row input {
+      flex: 1; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 14px; min-width: 0;
+    }
+    .param-row input:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    }
+    .param-row .param-unit {
+      width: 50px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0;
+    }
+
+    .calc-result {
+      background: var(--card); border-radius: var(--radius);
+      padding: 16px; border: 1px solid var(--border); margin-bottom: 16px;
+    }
+    .calc-result .result-value {
+      font-size: 24px; font-weight: 700; color: var(--primary);
+      margin-bottom: 4px;
+    }
+    .calc-result .result-unit { font-size: 14px; font-weight: 400; color: var(--text-secondary); }
+    .calc-result .result-status {
+      display: inline-block; padding: 2px 10px; border-radius: 12px;
+      font-size: 12px; font-weight: 600; margin-top: 6px;
+    }
+    .calc-result .result-status.pass { background: #dcfce7; color: var(--success); }
+    .calc-result .result-status.fail { background: #fee2e2; color: var(--danger); }
+
+    .calc-steps {
+      background: var(--card); border-radius: var(--radius);
+      padding: 16px; border: 1px solid var(--border); margin-bottom: 16px;
+    }
+    .calc-steps h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+    .calc-step {
+      padding: 8px 0; border-bottom: 1px solid #f1f5f9;
+      font-size: 13px; line-height: 1.7;
+    }
+    .calc-step:last-child { border-bottom: none; }
+    .calc-step .step-desc { color: var(--text-secondary); margin-bottom: 2px; }
+
+    /* Scene & Pitfalls */
+    .calc-scene {
+      background: #eff6ff; border-radius: var(--radius);
+      padding: 12px 14px; border-left: 4px solid var(--primary);
+      margin-bottom: 10px; font-size: 13px; line-height: 1.7;
+      color: #1e40af;
+    }
+    .calc-scene .scene-label {
+      font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
+    }
+    .calc-pitfalls {
+      background: #fef2f2; border-radius: var(--radius);
+      padding: 12px 14px; border-left: 4px solid var(--danger);
+      margin-bottom: 10px; font-size: 13px; line-height: 1.7;
+    }
+    .calc-pitfalls .pitfall-label {
+      font-weight: 600; margin-bottom: 6px; color: var(--danger);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .calc-pitfalls ul {
+      margin: 0; padding-left: 18px; color: #991b1b;
+    }
+    .calc-pitfalls li {
+      margin-bottom: 3px; list-style-type: disc;
+    }
+
+    .calc-formula-display {
+      background: #f8fafc; border-radius: 8px; padding: 12px;
+      margin-bottom: 12px; text-align: center; border: 1px solid #e2e8f0;
+      overflow-x: auto;
+    }
+
+    .calc-fill-btn {
+      padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: white; font-size: 11px; cursor: pointer; color: var(--primary);
+      margin-top: 4px;
+    }
+    .calc-fill-btn:hover { background: #eff6ff; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>岩土案例题批改器</h1>
+  <p>AI 智能批改 &middot; 规范公式计算 &middot; 逐步骤解析</p>
+  <div class="usage-info" id="usageInfo"></div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('grader')">AI 批改</button>
+  <button class="tab-btn" onclick="switchTab('calculator')">公式计算</button>
+</div>
+
+<!-- ==================== Tab 1: AI Grader ==================== -->
+<div class="tab-content active" id="tab-grader">
+<div class="container">
+
+  <div class="input-section">
+    <label>题目内容 <span class="hint">（粘贴或输入完整题干）</span></label>
+    <textarea class="question-input" id="questionInput" placeholder="例：某独立基础宽度4.0m，基础埋深1.5m，基础埋深范围内土层平均重度γ=18kN/m³，基底下采用中砂垫层，中砂垫层承载力特征值fak=145kPa。试计算中砂垫层修正后承载力特征值。"></textarea>
+  </div>
+
+  <div class="input-section">
+    <label>你的答案 <span class="hint">（输入最终结果或解题步骤）</span></label>
+    <textarea class="answer-input" id="answerInput" placeholder="例：fa = 145 + 1.0*18*(1.5-0.5) = 163 kPa&#10;或直接输入：163 kPa"></textarea>
+  </div>
+
+  <button class="submit-btn" id="submitBtn" onclick="startGrading()">开始批改</button>
+
+  <div class="loading" id="loading">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <p>AI 正在批改中，请稍候...</p>
+  </div>
+
+  <div class="result-section" id="resultSection">
+    <div class="result-header">
+      <div class="result-icon" id="resultIcon">?</div>
+      <div>
+        <div class="result-title" id="resultTitle">批改结果</div>
+        <div class="result-subtitle" id="resultSubtitle"></div>
+      </div>
+    </div>
+    <div class="result-content" id="resultContent"></div>
+  </div>
+
+  <div class="examples-section">
+    <h3>示例题目（点击填入）</h3>
+    <div class="example-card" onclick="loadExample(0)">
+      <div class="tag">地基处理</div>
+      <div class="preview">某独立基础宽度4.0m，基础埋深1.5m，基底下采用中砂垫层，fak=145kPa，求修正后承载力特征值...</div>
+    </div>
+    <div class="example-card" onclick="loadExample(1)">
+      <div class="tag">边坡工程</div>
+      <div class="preview">某均质土坡，坡高8m，坡角45°，土的重度γ=18.5kN/m³，内摩擦角φ=25°，黏聚力c=15kPa，用无限边坡法求稳定系数...</div>
+    </div>
+    <div class="example-card" onclick="loadExample(2)">
+      <div class="tag">桩基工程</div>
+      <div class="preview">某摩擦桩，桩径600mm，桩长20m，穿越粉质黏土层和砂层，各土层侧阻力标准值qsia分别为40kPa和60kPa，端阻力qpa=1200kPa，求单桩竖向承载力...</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ==================== Tab 2: Calculator ==================== -->
+<div class="tab-content" id="tab-calculator">
+<div class="container">
+
+  <!-- Category buttons -->
+  <div class="calc-category" id="calcCategory"></div>
+
+  <!-- Formula list -->
+  <div class="calc-formula-list" id="calcFormulaList">
+    <h3>选择公式</h3>
+    <div id="formulaItems"></div>
+  </div>
+
+  <!-- Selected formula display -->
+  <div class="input-section" id="calcFormulaDetail" style="display:none;">
+    <label>公式</label>
+    <div class="calc-formula-display" id="calcFormulaDisplay"></div>
+    <div style="font-size:13px;color:var(--text-secondary);" id="calcFormulaNote"></div>
+  </div>
+
+  <!-- Usage scene -->
+  <div class="calc-scene" id="calcScene" style="display:none;">
+    <div class="scene-label">📌 使用场景</div>
+    <div id="calcSceneText"></div>
+  </div>
+
+  <!-- Common pitfalls -->
+  <div class="calc-pitfalls" id="calcPitfalls" style="display:none;">
+    <div class="pitfall-label">⚠️ 常见坑点</div>
+    <ul id="calcPitfallItems"></ul>
+  </div>
+
+  <!-- Parameter inputs -->
+  <div class="calc-params" id="calcParams" style="display:none;">
+    <h3>输入参数</h3>
+    <div id="paramRows"></div>
+    <button class="submit-btn" style="margin-top:12px;margin-bottom:0;" onclick="runCalc()">计算</button>
+  </div>
+
+  <!-- Fill example button -->
+  <div id="calcFillExample" style="margin-bottom:12px;display:none;">
+    <button class="calc-fill-btn" onclick="fillCalcExample()" style="font-size:13px;padding:6px 14px;">填入示例数据</button>
+  </div>
+
+  <!-- Calculation result -->
+  <div class="calc-result" id="calcResult" style="display:none;">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:8px;">计算结果</h3>
+    <div class="result-value" id="calcResultValue"></div>
+    <div style="margin-top:8px;" id="calcResultStatus"></div>
+  </div>
+
+  <!-- Calculation steps -->
+  <div class="calc-steps" id="calcSteps" style="display:none;">
+    <h3>计算步骤</h3>
+    <div id="calcStepItems"></div>
+  </div>
+
+</div>
+</div>
+
+<div class="footer">
+  岩土案例题批改器 &copy; 2026<br>
+  <a href="#" onclick="showAbout(); return false;">关于</a>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Settings Modal (removed - API key managed by server) -->
+
+<script src="calculators.js"></script>
+<script>
+// ============================================================
+// Configuration
+// ============================================================
+const DAILY_FREE_LIMIT = 3;
+const STORAGE_KEY_USAGE = 'geotech_grader_usage';
+
+// ============================================================
+// Tab switching
+// ============================================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (tab==='grader'?i===0:i===1)));
+  document.getElementById('tab-grader').classList.toggle('active', tab==='grader');
+  document.getElementById('tab-calculator').classList.toggle('active', tab==='calculator');
+  document.getElementById('usageInfo').style.display = tab==='grader' ? 'block' : 'none';
+}
+
+// ============================================================
+// Examples & Toast
+// ============================================================
+const EXAMPLES = [
+  {
+    question: '某独立基础宽度4.0m，基础埋深1.5m，基础埋深范围内土层平均重度γ=18kN/m³，基底下采用中砂垫层，中砂垫层承载力特征值fak=145kPa。试计算中砂垫层修正后承载力特征值。',
+    answer: 'fa = 145 + 1.0*18*(1.5-0.5) = 163 kPa'
+  },
+  {
+    question: '某均质土坡，坡高H=8m，坡角β=45°，土的重度γ=18.5kN/m³，内摩擦角φ=25°，黏聚力c=15kPa。用无限边坡法求边坡稳定安全系数。',
+    answer: 'W = γ*h = 18.5*8 = 148\ndriving = 148*sin(45°) = 104.65\nresisting = 15 + 148*cos(45°)*tan(25°) = 15 + 74.8 = 89.8\nFs = 89.8/104.65 = 0.86'
+  },
+  {
+    question: '某钻孔灌注桩，桩径d=600mm，桩长L=20m。桩周土层分为两层：第一层粉质黏土，厚度10m，侧阻力标准值qsia=40kPa；第二层中砂，厚度10m，侧阻力标准值qsia=60kPa。桩端进入中砂层，端阻力标准值qpa=1200kPa。试求单桩竖向极限承载力标准值Quk。',
+    answer: 'Quk = up * Σ(qsia*li) + Ap * qpa\n= π*0.6*(40*10+60*10) + π*0.3²*1200\n= 1.885*1000 + 0.283*1200\n= 1885 + 339 = 2224 kN'
+  }
+];
+
+function loadExample(idx) {
+  const ex = EXAMPLES[idx];
+  document.getElementById('questionInput').value = ex.question;
+  document.getElementById('answerInput').value = ex.answer;
+  document.getElementById('resultSection').classList.remove('show');
+  showToast('已填入示例题目');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function showAbout() { showToast('岩土案例题批改器 v1.0'); }
+
+// ============================================================
+// Usage tracking
+// ============================================================
+function getUsage() {
+  const today = new Date().toDateString();
+  const s = JSON.parse(localStorage.getItem(STORAGE_KEY_USAGE) || '{}');
+  return s.date === today ? s : { date: today, count: 0 };
+}
+function incrementUsage() {
+  const u = getUsage(); u.count++;
+  localStorage.setItem(STORAGE_KEY_USAGE, JSON.stringify(u));
+  updateUsageDisplay();
+}
+function updateUsageDisplay() {
+  const u = getUsage(), el = document.getElementById('usageInfo');
+  el.textContent = u.count < DAILY_FREE_LIMIT
+    ? `今日剩余 ${DAILY_FREE_LIMIT - u.count} 次免费批改`
+    : '今日免费次数已用完，请明天再来';
+}
+function canUse() { return getUsage().count < DAILY_FREE_LIMIT; }
+
+// ============================================================
+// AI Grading (streaming via backend)
+// ============================================================
+async function startGrading() {
+  const question = document.getElementById('questionInput').value.trim();
+  const answer = document.getElementById('answerInput').value.trim();
+  if (!question) { showToast('请输入题目内容'); return; }
+  if (!answer) { showToast('请输入你的答案'); return; }
+  if (!canUse()) { showToast('今日免费次数已用完，请明天再来'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  const loading = document.getElementById('loading');
+  const rs = document.getElementById('resultSection');
+  btn.disabled = true; loading.classList.add('show'); rs.classList.remove('show');
+
+  try {
+    const resp = await fetch('/api/grade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, answer })
+    });
+    if (!resp.ok) {
+      const ej = await resp.json().catch(() => ({}));
+      throw new Error(ej.error || `批改失败 (${resp.status})`);
+    }
+    loading.classList.remove('show'); rs.classList.add('show');
+    const reader = resp.body.getReader(), decoder = new TextDecoder();
+    let full = '', buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t || t === 'data: [DONE]' || !t.startsWith('data: ')) continue;
+        try {
+          const d = JSON.parse(t.slice(6));
+          const delta = d.choices?.[0]?.delta?.content;
+          if (delta) { full += delta; renderContent(full); rs.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        } catch(e) {}
+      }
+    }
+    updateResultHeader(full); incrementUsage();
+  } catch (err) {
+    loading.classList.remove('show');
+    showToast(err.message || '批改失败，请稍后重试');
+  } finally { btn.disabled = false; }
+}
+
+function updateResultHeader(c) {
+  const ic = document.getElementById('resultIcon'), ti = document.getElementById('resultTitle'), su = document.getElementById('resultSubtitle');
+  if (c.includes('判断：正确') && !c.includes('部分正确')) {
+    ic.textContent='✓'; ic.className='result-icon correct'; ti.textContent='答案正确'; ti.style.color='var(--success)';
+  } else if (c.includes('部分正确')) {
+    ic.textContent='!'; ic.className='result-icon partial'; ti.textContent='部分正确'; ti.style.color='var(--warning)';
+  } else {
+    ic.textContent='✗'; ic.className='result-icon wrong'; ti.textContent='答案有误'; ti.style.color='var(--danger)';
+  }
+  su.textContent = 'AI 批改完成';
+}
+
+let _renderTimer = null;
+function renderContent(text) {
+  const el = document.getElementById('resultContent');
+  el.innerHTML = processMarkdownWithMath(text);
+  // Debounce KaTeX rendering during streaming (render every 300ms, not every chunk)
+  clearTimeout(_renderTimer);
+  _renderTimer = setTimeout(() => {
+    try { if (typeof renderMathInElement === 'function') {
+      renderMathInElement(el, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}], throwOnError:false });
+    }} catch(e){}
+  }, 300);
+}
+
+function processMarkdownWithMath(text) {
+  const blocks = [];
+  let p = text.replace(/\$\$([\s\S]+?)\$\$/g, (_,f) => { blocks.push({t:'d',f:f.trim()}); return `%%M${blocks.length-1}%%`; });
+  p = p.replace(/\$([^\$\n]+?)\$/g, (_,f) => { blocks.push({t:'i',f:f.trim()}); return `%%M${blocks.length-1}%%`; });
+  let h = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^## (.+)$/gm,'<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+  h = h.replace(/%%M(\d+)%%/g, (_,i) => {
+    const b = blocks[parseInt(i)];
+    return b.t==='d' ? `$$${b.f}$$` : `$${b.f}$`;
+  });
+  return h;
+}
+
+// ============================================================
+// Calculator Engine — formulas loaded from calculators.js
+// ============================================================
+
+// Calculator state
+let currentCatId = 'bearing';
+let currentFormulaId = null;
+
+function initCalculator() {
+  renderCalcCategories();
+  selectCalcCategory('bearing');
+}
+
+function renderCalcCategories() {
+  const el = document.getElementById('calcCategory');
+  el.innerHTML = CALC_CATEGORIES.map(c =>
+    `<button class="calc-cat-btn${c.id===currentCatId?' active':''}" onclick="selectCalcCategory('${c.id}')">${c.name}</button>`
+  ).join('');
+}
+
+function selectCalcCategory(catId) {
+  currentCatId = catId;
+  currentFormulaId = null;
+  renderCalcCategories();
+  const cat = CALC_CATEGORIES.find(c => c.id === catId);
+  const items = document.getElementById('formulaItems');
+  items.innerHTML = cat.formulas.map(f =>
+    `<div class="calc-formula-item" id="fi-${f.id}" onclick="selectCalcFormula('${f.id}')">
+      <span class="fname">${f.name}</span>
+    </div>`
+  ).join('');
+  hideCalcDetail();
+}
+
+function selectCalcFormula(fid) {
+  currentFormulaId = fid;
+  const cat = CALC_CATEGORIES.find(c => c.id === currentCatId);
+  const f = cat.formulas.find(x => x.id === fid);
+  if (!f) return;
+
+  // Highlight
+  document.querySelectorAll('.calc-formula-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('fi-' + fid).classList.add('active');
+
+  // Show formula display
+  const detail = document.getElementById('calcFormulaDetail');
+  detail.style.display = 'block';
+  document.getElementById('calcFormulaDisplay').innerHTML = `$$${f.expr}$$`;
+  document.getElementById('calcFormulaNote').textContent = f.note;
+  renderKatex(document.getElementById('calcFormulaDisplay'));
+
+  // Show scene
+  const sceneEl = document.getElementById('calcScene');
+  if (f.scene) {
+    sceneEl.style.display = 'block';
+    document.getElementById('calcSceneText').textContent = f.scene;
+  } else {
+    sceneEl.style.display = 'none';
+  }
+
+  // Show pitfalls
+  const pitfallsEl = document.getElementById('calcPitfalls');
+  if (f.pitfalls && f.pitfalls.length) {
+    pitfallsEl.style.display = 'block';
+    document.getElementById('calcPitfallItems').innerHTML =
+      f.pitfalls.map(p => `<li>${escHtml(p)}</li>`).join('');
+  } else {
+    pitfallsEl.style.display = 'none';
+  }
+
+  // Show params
+  const paramsEl = document.getElementById('calcParams');
+  paramsEl.style.display = 'block';
+  const rows = document.getElementById('paramRows');
+  rows.innerHTML = f.params.map(p =>
+    `<div class="param-row">
+      <label>${p.label}</label>
+      <input type="number" step="any" id="cp-${p.key}" value="${p.default}" />
+      <span class="param-unit">${p.unit}</span>
+    </div>`
+  ).join('');
+
+  // Show fill example
+  document.getElementById('calcFillExample').style.display = 'block';
+
+  // Hide previous results
+  document.getElementById('calcResult').style.display = 'none';
+  document.getElementById('calcSteps').style.display = 'none';
+}
+
+function hideCalcDetail() {
+  document.getElementById('calcFormulaDetail').style.display = 'none';
+  document.getElementById('calcScene').style.display = 'none';
+  document.getElementById('calcPitfalls').style.display = 'none';
+  document.getElementById('calcParams').style.display = 'none';
+  document.getElementById('calcFillExample').style.display = 'none';
+  document.getElementById('calcResult').style.display = 'none';
+  document.getElementById('calcSteps').style.display = 'none';
+}
+
+function fillCalcExample() {
+  const cat = CALC_CATEGORIES.find(c => c.id === currentCatId);
+  const f = cat.formulas.find(x => x.id === currentFormulaId);
+  if (!f || !f.example) return;
+  for (const [key, val] of Object.entries(f.example)) {
+    const inp = document.getElementById('cp-' + key);
+    if (inp) inp.value = val;
+  }
+  showToast('已填入示例数据');
+}
+
+function getCalcParams() {
+  const cat = CALC_CATEGORIES.find(c => c.id === currentCatId);
+  const f = cat.formulas.find(x => x.id === currentFormulaId);
+  if (!f) return null;
+  const p = {};
+  for (const param of f.params) {
+    const inp = document.getElementById('cp-' + param.key);
+    p[param.key] = inp ? parseFloat(inp.value) || 0 : 0;
+  }
+  return p;
+}
+
+function runCalc() {
+  const cat = CALC_CATEGORIES.find(c => c.id === currentCatId);
+  const f = cat.formulas.find(x => x.id === currentFormulaId);
+  if (!f) return;
+  const p = getCalcParams();
+  if (!p) return;
+
+  const res = f.calc(p);
+
+  // Show result
+  const resultEl = document.getElementById('calcResult');
+  resultEl.style.display = 'block';
+  document.getElementById('calcResultValue').innerHTML = `${escHtml(res.value)} <span class="result-unit">${escHtml(res.unit)}</span>`;
+  const statusEl = document.getElementById('calcResultStatus');
+  if (res.isValid) {
+    statusEl.innerHTML = '<span class="result-status pass">计算结果合理</span>';
+  } else {
+    statusEl.innerHTML = '<span class="result-status fail">结果异常，请检查参数</span>';
+  }
+
+  // Show steps
+  const stepsEl = document.getElementById('calcSteps');
+  stepsEl.style.display = 'block';
+  const items = document.getElementById('calcStepItems');
+  items.innerHTML = res.steps.map(s =>
+    `<div class="calc-step">
+      <div class="step-desc">${escHtml(s.desc)}</div>
+      <div>$$${escHtml(s.latex)}$$</div>
+    </div>`
+  ).join('');
+
+  // Render KaTeX
+  renderKatex(document.getElementById('calcResult'));
+  renderKatex(stepsEl);
+  stepsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderKatex(el) {
+  try {
+    if (typeof renderMathInElement === 'function') {
+      renderMathInElement(el, {
+        delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+        throwOnError: false
+      });
+    }
+  } catch(e) {}
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================
+// Init
+// ============================================================
+updateUsageDisplay();
+initCalculator();
+if (!getApiKey()) {
+  setTimeout(() => showToast('首次使用请点击右上角 ⚙ 设置 API 密钥'), 1000);
+}
+</script>
+</body>
+</html>
